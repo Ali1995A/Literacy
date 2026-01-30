@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: radial-gradient(1200px 700px at 20% 10%, #ffe4f3 0%, rgba(255, 228, 243, 0) 60%),
+    radial-gradient(1200px 700px at 80% 0%, #ffe9f7 0%, rgba(255, 233, 247, 0) 60%),
+    linear-gradient(180deg, #fff 0%, #fff7fb 100%);
+  color: #2b1b2a;
+  -webkit-tap-highlight-color: transparent;
+}
