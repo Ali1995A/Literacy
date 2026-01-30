@@ -7,7 +7,7 @@ import { pickUniqueIndices, shuffle, weightedPickUniqueIndices } from "@/lib/ran
 import { decMistake, incMistake, loadMistakes, type MistakeStats, wordKey } from "@/lib/progress";
 import { speechSupported } from "@/lib/speech";
 import { playCheer } from "@/lib/sound";
-import { prefetchText, speakText } from "@/lib/tts";
+import { prefetchText, speakText, type SpeakResult, unlockRemoteAudio } from "@/lib/tts";
 
 type RoundItem = {
   word: WordEntry;
@@ -62,6 +62,8 @@ export default function Game() {
   const [localFallbackOn, setLocalFallbackOn] = useState(false);
   const [autoNextOnCorrect, setAutoNextOnCorrect] = useState(true);
   const [unlocked, setUnlocked] = useState(() => !needsUnlock());
+  const [fastMode, setFastMode] = useState(false);
+  const [speakResult, setSpeakResult] = useState<SpeakResult>("silent");
   const lastSpokenRef = useRef<string>("");
 
   const current = round.items[round.currentIndex];
@@ -115,10 +117,10 @@ export default function Game() {
     lastSpokenRef.current = text;
     void speakText(text, {
       preferRemote: true,
-      remoteTimeoutMs: 650,
+      remoteTimeoutMs: fastMode ? 650 : 6000,
       fallback: localFallbackOn ? "local" : "silent"
-    });
-  }, [current, speechOn, unlocked, localFallbackOn]);
+    }).then((r) => setSpeakResult(r ?? "silent"));
+  }, [current, speechOn, unlocked, localFallbackOn, fastMode]);
 
   async function celebrate() {
     try {
@@ -185,9 +187,9 @@ export default function Game() {
     if (!text) return;
     void speakText(text, {
       preferRemote: true,
-      remoteTimeoutMs: 650,
+      remoteTimeoutMs: fastMode ? 650 : 6000,
       fallback: localFallbackOn ? "local" : "silent"
-    });
+    }).then((r) => setSpeakResult(r ?? "silent"));
   }
 
   function unlockAudioAndSpeech() {
@@ -197,11 +199,12 @@ export default function Game() {
     const text = current?.word.hanzi;
     if (!text) return;
     lastSpokenRef.current = text;
+    void unlockRemoteAudio();
     void speakText(text, {
       preferRemote: true,
-      remoteTimeoutMs: 650,
+      remoteTimeoutMs: fastMode ? 650 : 6000,
       fallback: localFallbackOn ? "local" : "silent"
-    });
+    }).then((r) => setSpeakResult(r ?? "silent"));
   }
 
   return (
@@ -214,6 +217,28 @@ export default function Game() {
           <div className="text-sm text-pink-700/80">
             正确：{round.correctCount}/{ROUND_SIZE}
           </div>
+          {speechOn && (
+            <div
+              className={[
+                "rounded-full px-3 py-1 text-xs font-extrabold ring-1",
+                speakResult === "remote"
+                  ? "bg-sky-50 text-sky-700 ring-sky-200"
+                  : speakResult === "blocked"
+                    ? "bg-amber-50 text-amber-800 ring-amber-200"
+                    : speakResult === "local"
+                      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                      : "bg-white text-pink-700/70 ring-pink-100"
+              ].join(" ")}
+            >
+              {speakResult === "remote"
+                ? "云端✓"
+                : speakResult === "blocked"
+                  ? "云端需点击"
+                  : speakResult === "local"
+                    ? "本地兜底"
+                    : "静音"}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -225,6 +250,17 @@ export default function Game() {
             }`}
           >
             朗读：{speechOn ? "开" : "关"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFastMode((v) => !v)}
+            className={`touch-manipulation rounded-full px-3 py-1 text-sm font-semibold ring-1 ${
+              fastMode
+                ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                : "bg-white text-pink-700/70 ring-pink-100"
+            }`}
+          >
+            快速模式：{fastMode ? "开" : "关"}
           </button>
           <button
             type="button"

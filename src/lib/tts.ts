@@ -7,8 +7,10 @@ type SpeakOptions = {
   signal?: AbortSignal;
 };
 
+export type SpeakResult = "remote" | "local" | "silent" | "blocked";
+
 const audioUrlCache = new Map<string, string>();
-let currentAudio: HTMLAudioElement | null = null;
+let sharedAudio: HTMLAudioElement | null = null;
 let activeSeq = 0;
 let activeAbort: AbortController | null = null;
 
@@ -36,14 +38,13 @@ function stopCurrent() {
     activeAbort = null;
   }
   cancelSpeech();
-  if (currentAudio) {
+  if (sharedAudio) {
     try {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
+      sharedAudio.pause();
+      sharedAudio.currentTime = 0;
     } catch {
       // ignore
     }
-    currentAudio = null;
   }
 }
 
@@ -56,6 +57,43 @@ export async function prefetchText(text: string) {
   if (audioUrlCache.has(text)) return;
   const url = await fetchWavForText(text);
   audioUrlCache.set(text, url);
+}
+
+export async function unlockRemoteAudio() {
+  if (typeof window === "undefined") return;
+  sharedAudio = sharedAudio ?? new Audio();
+
+  // Try to unlock WebAudio as well (helps some iOS/WebView environments).
+  try {
+    const AudioContextCtor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (AudioContextCtor) {
+      const ctx = new AudioContextCtor();
+      await ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.00001;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.02);
+      window.setTimeout(() => void ctx.close(), 200);
+    }
+  } catch {
+    // ignore
+  }
+
+  // Also try to "prime" the <audio> element. Some environments only allow play after a user gesture.
+  try {
+    sharedAudio.src =
+      "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA="; // tiny silent wav
+    await sharedAudio.play();
+    sharedAudio.pause();
+    sharedAudio.currentTime = 0;
+  } catch {
+    // ignore
+  }
 }
 
 function makeAbortController(parent?: AbortSignal) {
@@ -90,7 +128,7 @@ function withTimeout(signal: AbortSignal, ms: number) {
 
 export async function speakText(text: string, opts: SpeakOptions = {}) {
   const preferRemote = opts.preferRemote ?? true;
-  const remoteTimeoutMs = opts.remoteTimeoutMs ?? 650;
+  const remoteTimeoutMs = opts.remoteTimeoutMs ?? 5000;
   const fallback = opts.fallback ?? "silent";
 
   stopCurrent();
@@ -110,14 +148,24 @@ export async function speakText(text: string, opts: SpeakOptions = {}) {
 
       if (controller.signal.aborted || seq !== activeSeq) return;
 
-      const audio = new Audio(url);
-      audio.preload = "auto";
-      currentAudio = audio;
-      await audio.play();
+      sharedAudio = sharedAudio ?? new Audio();
+      sharedAudio.preload = "auto";
+      sharedAudio.src = url;
+      sharedAudio.currentTime = 0;
+      try {
+        await sharedAudio.play();
+      } catch (e) {
+        const name = (e as { name?: string } | null)?.name ?? "";
+        if (name === "NotAllowedError") {
+          // iOS/WebView auto-play policy: keep src ready; user can tap "再听一遍".
+          return "blocked" satisfies SpeakResult;
+        }
+        throw e;
+      }
       if (controller.signal.aborted || seq !== activeSeq) {
         stopCurrent();
       }
-      return;
+      return "remote" satisfies SpeakResult;
     } catch {
       // fall through to local engine
     }
@@ -126,6 +174,9 @@ export async function speakText(text: string, opts: SpeakOptions = {}) {
   if (!controller.signal.aborted && seq === activeSeq && speechSupported()) {
     if (fallback === "local") {
       await speakChinese(text);
+      return "local" satisfies SpeakResult;
     }
   }
+
+  return "silent" satisfies SpeakResult;
 }
