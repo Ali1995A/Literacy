@@ -94,7 +94,7 @@ async function handleTts({
   speed: number | null;
 }) {
   const model = "glm-tts";
-  const chosenVoice = voice || process.env.ZHIPU_TTS_VOICE || "xiaochen";
+  const chosenVoice = voice || process.env.ZHIPU_TTS_VOICE || "tongtong";
   const chosenSpeed = Number.isFinite(speed ?? NaN)
     ? (speed as number)
     : Number(process.env.ZHIPU_TTS_SPEED ?? "1");
