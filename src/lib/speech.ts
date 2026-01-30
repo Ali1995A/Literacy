@@ -78,8 +78,8 @@ export async function speakChinese(text: string) {
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = "zh-CN";
   if (voice) utter.voice = voice;
-  utter.rate = 0.92;
-  utter.pitch = 1.08;
+  utter.rate = 1;
+  utter.pitch = 1;
   utter.volume = 1;
   synth.speak(utter);
 }
