@@ -47,7 +47,7 @@ function BlankWord({ text }: { text: string }) {
       {Array.from({ length: count }).map((_, i) => (
         <span
           key={i}
-          className="inline-block h-10 w-12 border-b-4 border-pink-300/90"
+          className="inline-block h-8 w-9 border-b-4 border-pink-300/90 md:h-10 md:w-12"
         />
       ))}
     </div>
@@ -270,13 +270,13 @@ export default function Game() {
         <div className="grid min-h-0 gap-5 lg:grid-cols-[1.05fr,1fr] lg:gap-6">
           <div className="text-center lg:flex lg:flex-col lg:justify-center">
             <div className="text-sm font-semibold text-pink-700/80">拼音</div>
-            <div className="mt-1 text-3xl font-extrabold tracking-wide text-pink-800 md:text-4xl">
+            <div className="mt-1 text-2xl font-extrabold tracking-wide text-pink-800 sm:text-3xl md:text-4xl">
               {current?.word.pinyin}
             </div>
-            <div className="mt-5 md:mt-6">
+            <div className="mt-4 md:mt-6">
               <BlankWord text={current?.word.hanzi ?? ""} />
             </div>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={replay}
@@ -302,7 +302,7 @@ export default function Game() {
               </button>
             </div>
 
-            <div className="mt-5 min-h-10 text-center">
+            <div className="mt-4 min-h-10 text-center">
               {status === "wrong" && (
                 <div className="inline-flex items-center gap-2 rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 ring-1 ring-rose-200">
                   这题已记录，之后会再出现～
@@ -316,7 +316,7 @@ export default function Game() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:auto-rows-fr">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:auto-rows-fr">
             {current?.options.map((opt, i) => {
               const label = ["A", "B", "C", "D"][i] ?? "?";
               const disabled = status === "correct";
@@ -329,7 +329,7 @@ export default function Game() {
                   disabled={disabled}
                   onClick={() => onPick(opt)}
                   className={[
-                    "touch-manipulation group h-full rounded-2xl border-2 bg-white px-5 py-5 text-left shadow-sm transition md:py-6",
+                    "touch-manipulation group h-full rounded-2xl border-2 bg-white px-3 py-3 text-left shadow-sm transition sm:px-5 sm:py-5 md:py-6",
                     "md:hover:-translate-y-0.5 md:hover:border-pink-300 md:hover:shadow-soft active:translate-y-0",
                     disabled ? "opacity-90" : "",
                     showAnswerHint ? "border-emerald-300 ring-2 ring-emerald-200/60" : "",
@@ -340,7 +340,7 @@ export default function Game() {
                   <div className="flex items-start gap-3">
                     <div
                       className={[
-                        "mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-extrabold text-white md:h-11 md:w-11",
+                        "mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl text-xs font-extrabold text-white sm:h-10 sm:w-10 sm:text-sm md:h-11 md:w-11",
                         showAnswerHint ? "bg-emerald-600" : "bg-pink-600"
                       ].join(" ")}
                     >
@@ -349,7 +349,7 @@ export default function Game() {
                     <div className="min-w-0 flex-1">
                       <div
                         className={[
-                          "text-3xl font-extrabold group-hover:text-pink-900 md:text-4xl",
+                          "text-2xl font-extrabold group-hover:text-pink-900 sm:text-3xl md:text-4xl",
                           showAnswerHint ? "text-emerald-700" : "text-pink-800"
                         ].join(" ")}
                       >
@@ -357,7 +357,7 @@ export default function Game() {
                       </div>
                       <div
                         className={[
-                          "mt-1 text-sm font-semibold md:text-base",
+                          "mt-1 text-xs font-semibold sm:text-sm md:text-base",
                           showAnswerHint ? "text-emerald-700/70" : "text-pink-700/70"
                         ].join(" ")}
                       >

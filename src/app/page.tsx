@@ -18,7 +18,7 @@ export default function HomePage() {
           <Game />
         </div>
 
-        <footer className="mt-5 text-center text-xs text-pink-700/70 md:mt-8">
+        <footer className="mt-5 hidden text-center text-xs text-pink-700/70 md:mt-8 md:block">
           轻轻点选答案；不会也没关系，慢慢来。
         </footer>
       </div>
