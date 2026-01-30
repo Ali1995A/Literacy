@@ -1,9 +1,9 @@
 export type MistakeStats = Record<string, number>;
 
-const STORAGE_KEY = "literacy.mistakes.v1";
+const STORAGE_KEY = "literacy.mistakes.v2";
 
-export function wordKey(hanzi: string, pinyin: string) {
-  return `${hanzi}__${pinyin}`;
+export function wordKey(hanzi: string) {
+  return hanzi;
 }
 
 export function loadMistakes(): MistakeStats {
@@ -50,4 +50,3 @@ export function decMistake(stats: MistakeStats, key: string) {
   saveMistakes(next);
   return next;
 }
-

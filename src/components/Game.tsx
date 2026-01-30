@@ -2,7 +2,7 @@
 
 import confetti from "canvas-confetti";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { WORDS, type WordEntry } from "@/lib/words";
+import type { WordEntry } from "@/lib/types";
 import { pickUniqueIndices, shuffle, weightedPickUniqueIndices } from "@/lib/random";
 import { decMistake, incMistake, loadMistakes, type MistakeStats, wordKey } from "@/lib/progress";
 import { speechSupported } from "@/lib/speech";
@@ -23,13 +23,16 @@ type RoundState = {
 const ROUND_SIZE = 5;
 const OPTION_COUNT = 4;
 
-function buildRound(stats: MistakeStats): RoundState {
-  const weights = WORDS.map((w) => 1 + (stats[wordKey(w.hanzi, w.pinyin)] ?? 0) * 4);
+function buildRound(bank: WordEntry[], stats: MistakeStats): RoundState {
+  const weights = bank.map((w) => 1 + (stats[wordKey(w.hanzi)] ?? 0) * 4);
   const questionIndices = weightedPickUniqueIndices(weights, ROUND_SIZE);
   const items: RoundItem[] = questionIndices.map((wordIndex) => {
-    const correct = WORDS[wordIndex];
-    const distractorIndices = pickUniqueIndices(WORDS.length, OPTION_COUNT - 1, new Set([wordIndex]));
-    const options = shuffle([correct, ...distractorIndices.map((i) => WORDS[i])]);
+    const correct = bank[wordIndex]!;
+    const distractorIndices = pickUniqueIndices(bank.length, OPTION_COUNT - 1, new Set([wordIndex]));
+    const options = shuffle([
+      correct,
+      ...distractorIndices.map((i) => bank[i]!)
+    ]);
     return { word: correct, options };
   });
 
@@ -55,30 +58,61 @@ function BlankWord({ text }: { text: string }) {
 }
 
 export default function Game() {
+  const [bank, setBank] = useState<WordEntry[] | null>(null);
   const [mistakes, setMistakes] = useState<MistakeStats>({});
-  const [round, setRound] = useState<RoundState>(() => buildRound({}));
+  const [mistakesLoaded, setMistakesLoaded] = useState(false);
+  const [round, setRound] = useState<RoundState | null>(null);
   const [status, setStatus] = useState<"idle" | "correct" | "wrong" | "done">("idle");
   const [speechOn, setSpeechOn] = useState(true);
   const [autoNextOnCorrect, setAutoNextOnCorrect] = useState(true);
   const [unlocked, setUnlocked] = useState(() => !needsUnlock());
   const lastSpokenRef = useRef<string>("");
 
-  const current = round.items[round.currentIndex];
+  const current = round ? round.items[round.currentIndex] : null;
   const hintMode = useMemo(() => isBeforeBeijingDate("2026-04-01"), []);
   const progressLabel = useMemo(() => {
+    if (!round) return "加载中…";
     if (status === "done") return `本组完成：${round.correctCount}/${ROUND_SIZE}`;
     return `第 ${round.currentIndex + 1} / ${ROUND_SIZE} 题`;
-  }, [round.correctCount, round.currentIndex, status]);
+  }, [round, status]);
 
   useEffect(() => {
     const loaded = loadMistakes();
     setMistakes(loaded);
-    setRound(buildRound(loaded));
+    setMistakesLoaded(true);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch("/api/words");
+        if (!res.ok) throw new Error(`words http ${res.status}`);
+        const json = (await res.json()) as { words?: WordEntry[] };
+        const words = json.words ?? [];
+        if (!Array.isArray(words) || words.length < 50) throw new Error("invalid word bank");
+        if (!cancelled) setBank(words);
+      } catch {
+        if (!cancelled) setBank([]);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mistakesLoaded) return;
+    if (!bank || bank.length === 0) return;
+    if (round) return;
+    setRound(buildRound(bank, mistakes));
+  }, [bank, mistakes, mistakesLoaded, round]);
 
   useEffect(() => {
     if (!speechOn) return;
     if (!unlocked) return;
+    if (!round) return;
     const words = round.items.map((x) => x.word.hanzi);
     if (words.length === 0) return;
 
@@ -102,7 +136,7 @@ export default function Game() {
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [round.items, speechOn, unlocked]);
+  }, [round, speechOn, unlocked]);
 
   useEffect(() => {
     if (!current) return;
@@ -144,18 +178,20 @@ export default function Game() {
   }
 
   function nextQuestion() {
+    if (!round) return;
     const nextIndex = round.currentIndex + 1;
     if (nextIndex >= round.items.length) {
       setStatus("done");
       void celebrate();
       return;
     }
-    setRound((r) => ({ ...r, currentIndex: nextIndex }));
+    setRound((r) => (r ? { ...r, currentIndex: nextIndex } : r));
   }
 
   function restartRound() {
     setStatus("idle");
-    setRound(buildRound(mistakes));
+    if (!bank || bank.length === 0) return;
+    setRound(buildRound(bank, mistakes));
   }
 
   async function onPick(option: WordEntry) {
@@ -165,13 +201,13 @@ export default function Game() {
     const isCorrect = option.hanzi === current.word.hanzi;
     if (!isCorrect) {
       setStatus("wrong");
-      setMistakes((m) => incMistake(m, wordKey(current.word.hanzi, current.word.pinyin)));
+      setMistakes((m) => incMistake(m, wordKey(current.word.hanzi)));
       return;
     }
 
     setStatus("correct");
-    setMistakes((m) => decMistake(m, wordKey(current.word.hanzi, current.word.pinyin)));
-    setRound((r) => ({ ...r, correctCount: r.correctCount + 1 }));
+    setMistakes((m) => decMistake(m, wordKey(current.word.hanzi)));
+    setRound((r) => (r ? { ...r, correctCount: r.correctCount + 1 } : r));
 
     if (!autoNextOnCorrect) return;
     window.setTimeout(() => nextQuestion(), 650);
@@ -212,9 +248,11 @@ export default function Game() {
           <div className="rounded-full bg-pink-600 px-3 py-1 text-sm font-semibold text-white">
             {progressLabel}
           </div>
-          <div className="text-sm text-pink-700/80">
-            正确：{round.correctCount}/{ROUND_SIZE}
-          </div>
+          {round && (
+            <div className="text-sm text-pink-700/80">
+              正确：{round.correctCount}/{ROUND_SIZE}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -247,7 +285,13 @@ export default function Game() {
         </div>
       )}
 
-      {status === "done" ? (
+      {!bank || bank.length === 0 || !round ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center py-10 text-center">
+          <div className="rounded-2xl bg-white/90 px-5 py-4 text-sm font-semibold text-pink-700 ring-1 ring-pink-100">
+            正在加载词库…
+          </div>
+        </div>
+      ) : status === "done" ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-6 text-center">
           <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-2xl bg-pink-600 px-4 py-2 text-white shadow-soft">
             <span className="text-lg font-extrabold">恭喜完成！</span>
