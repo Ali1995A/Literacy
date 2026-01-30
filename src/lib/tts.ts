@@ -4,6 +4,8 @@ type SpeakOptions = {
   preferRemote?: boolean;
   remoteTimeoutMs?: number;
   fallback?: "local" | "silent";
+  voice?: string;
+  speed?: number;
   signal?: AbortSignal;
 };
 
@@ -14,8 +16,17 @@ let sharedAudio: HTMLAudioElement | null = null;
 let activeSeq = 0;
 let activeAbort: AbortController | null = null;
 
-async function fetchWavForText(text: string, signal?: AbortSignal) {
-  const url = `/api/tts?text=${encodeURIComponent(text)}`;
+async function fetchWavForText(
+  text: string,
+  params: { voice?: string; speed?: number },
+  signal?: AbortSignal
+) {
+  const voice = (params.voice ?? "").trim();
+  const speed = typeof params.speed === "number" ? params.speed : null;
+  const url =
+    `/api/tts?text=${encodeURIComponent(text)}` +
+    (voice ? `&voice=${encodeURIComponent(voice)}` : "") +
+    (speed !== null ? `&speed=${encodeURIComponent(String(speed))}` : "");
   const res = await fetch(url, {
     method: "GET",
     signal
@@ -53,10 +64,14 @@ export function cleanupTtsCache() {
   audioUrlCache.clear();
 }
 
-export async function prefetchText(text: string) {
-  if (audioUrlCache.has(text)) return;
-  const url = await fetchWavForText(text);
-  audioUrlCache.set(text, url);
+export async function prefetchText(
+  text: string,
+  opts: { voice?: string; speed?: number } = {}
+) {
+  const cacheKey = `${text}__${(opts.voice ?? "").trim()}__${typeof opts.speed === "number" ? opts.speed : ""}`;
+  if (audioUrlCache.has(cacheKey)) return;
+  const url = await fetchWavForText(text, opts);
+  audioUrlCache.set(cacheKey, url);
 }
 
 export async function unlockRemoteAudio() {
@@ -130,6 +145,8 @@ export async function speakText(text: string, opts: SpeakOptions = {}) {
   const preferRemote = opts.preferRemote ?? true;
   const remoteTimeoutMs = opts.remoteTimeoutMs ?? 5000;
   const fallback = opts.fallback ?? "silent";
+  const voice = opts.voice;
+  const speed = opts.speed;
 
   stopCurrent();
   const seq = activeSeq;
@@ -138,13 +155,14 @@ export async function speakText(text: string, opts: SpeakOptions = {}) {
 
   if (preferRemote) {
     try {
-      const cached = audioUrlCache.get(text);
+      const cacheKey = `${text}__${voice ?? ""}__${typeof speed === "number" ? speed : ""}`;
+      const cached = audioUrlCache.get(cacheKey);
       const timedSignal =
         typeof window === "undefined"
           ? controller.signal
           : withTimeout(controller.signal, remoteTimeoutMs);
-      const url = cached ?? (await fetchWavForText(text, timedSignal));
-      if (!cached) audioUrlCache.set(text, url);
+      const url = cached ?? (await fetchWavForText(text, { voice, speed }, timedSignal));
+      if (!cached) audioUrlCache.set(cacheKey, url);
 
       if (controller.signal.aborted || seq !== activeSeq) return;
 

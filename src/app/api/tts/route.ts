@@ -4,6 +4,8 @@ export const runtime = "nodejs";
 
 type TtsRequest = {
   text?: string;
+  voice?: string;
+  speed?: number;
 };
 
 function getTextFromUrl(req: Request) {
@@ -15,33 +17,25 @@ function getTextFromUrl(req: Request) {
   }
 }
 
-function base64ToBuffer(b64: string) {
-  return Buffer.from(b64, "base64");
+function getVoiceFromUrl(req: Request) {
+  try {
+    const url = new URL(req.url);
+    return (url.searchParams.get("voice") ?? "").trim();
+  } catch {
+    return "";
+  }
 }
 
-function pcm16MonoToWav(pcm: Buffer, sampleRate = 44100) {
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const dataSize = pcm.length;
-  const buffer = Buffer.alloc(44 + dataSize);
-
-  buffer.write("RIFF", 0);
-  buffer.writeUInt32LE(36 + dataSize, 4);
-  buffer.write("WAVE", 8);
-  buffer.write("fmt ", 12);
-  buffer.writeUInt32LE(16, 16); // PCM chunk size
-  buffer.writeUInt16LE(1, 20); // PCM format
-  buffer.writeUInt16LE(numChannels, 22);
-  buffer.writeUInt32LE(sampleRate, 24);
-  buffer.writeUInt32LE(byteRate, 28);
-  buffer.writeUInt16LE(blockAlign, 32);
-  buffer.writeUInt16LE(bitsPerSample, 34);
-  buffer.write("data", 36);
-  buffer.writeUInt32LE(dataSize, 40);
-  pcm.copy(buffer, 44);
-  return buffer;
+function getSpeedFromUrl(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const raw = (url.searchParams.get("speed") ?? "").trim();
+    if (!raw) return null;
+    const v = Number(raw);
+    return Number.isFinite(v) ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: Request) {
@@ -65,7 +59,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing text" }, { status: 400 });
   }
 
-  return handleTts(text, apiKey);
+  const voice = (body?.voice ?? "").trim();
+  const speed = typeof body?.speed === "number" ? body.speed : null;
+
+  return handleTts({ text, apiKey, voice, speed });
 }
 
 export async function GET(req: Request) {
@@ -80,39 +77,42 @@ export async function GET(req: Request) {
   if (!text) {
     return NextResponse.json({ error: "Missing text" }, { status: 400 });
   }
-  return handleTts(text, apiKey);
+  const voice = getVoiceFromUrl(req);
+  const speed = getSpeedFromUrl(req);
+  return handleTts({ text, apiKey, voice, speed });
 }
 
-async function handleTts(text: string, apiKey: string) {
-  const model = process.env.ZHIPU_VOICE_MODEL || "glm-4-voice";
+async function handleTts({
+  text,
+  apiKey,
+  voice,
+  speed
+}: {
+  text: string;
+  apiKey: string;
+  voice: string;
+  speed: number | null;
+}) {
+  const model = "glm-tts";
+  const chosenVoice = voice || process.env.ZHIPU_TTS_VOICE || "xiaochen";
+  const chosenSpeed = Number.isFinite(speed ?? NaN)
+    ? (speed as number)
+    : Number(process.env.ZHIPU_TTS_SPEED ?? "1");
 
-  const prompt = `请用清晰、儿童友好、略慢一点的语速朗读以下词语：${text}`;
-
-  const upstream = await fetch(
-    "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: prompt
-              }
-            ]
-          }
-        ]
-      })
-    }
-  );
+  const upstream = await fetch("https://open.bigmodel.cn/api/paas/v4/audio/speech", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      input: text,
+      voice: chosenVoice,
+      speed: chosenSpeed,
+      response_format: "wav"
+    })
+  });
 
   if (!upstream.ok) {
     const detail = await upstream.text().catch(() => "");
@@ -126,30 +126,11 @@ async function handleTts(text: string, apiKey: string) {
     );
   }
 
-  const json = (await upstream.json()) as {
-    choices?: Array<{
-      message?: {
-        audio?: { data?: string };
-      };
-    }>;
-  };
-
-  const audioB64 = json.choices?.[0]?.message?.audio?.data;
-  if (!audioB64) {
-    return NextResponse.json(
-      { error: "No audio data in response" },
-      { status: 502 }
-    );
-  }
-
-  const pcm = base64ToBuffer(audioB64);
-  const wav = pcm16MonoToWav(pcm, 44100);
-
-  return new NextResponse(wav, {
+  const buf = Buffer.from(await upstream.arrayBuffer());
+  return new NextResponse(buf, {
     status: 200,
     headers: {
       "Content-Type": "audio/wav",
-      // GET: allow CDN/browser cache; POST: typically not cached by browsers, but header is harmless.
       "Cache-Control": "public, max-age=31536000, immutable"
     }
   });

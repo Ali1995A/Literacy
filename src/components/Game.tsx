@@ -64,6 +64,7 @@ export default function Game() {
   const [unlocked, setUnlocked] = useState(() => !needsUnlock());
   const [fastMode, setFastMode] = useState(false);
   const [speakResult, setSpeakResult] = useState<SpeakResult>("silent");
+  const [cloudVoice, setCloudVoice] = useState("xiaochen");
   const lastSpokenRef = useRef<string>("");
 
   const current = round.items[round.currentIndex];
@@ -92,7 +93,7 @@ export default function Game() {
         if (cancelled) return;
         const text = words[i]!;
         try {
-          await prefetchText(text);
+          await prefetchText(text, { voice: cloudVoice });
         } catch {
           // ignore (will fall back at speak time)
         }
@@ -105,7 +106,7 @@ export default function Game() {
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [round.items, speechOn, unlocked]);
+  }, [round.items, speechOn, unlocked, cloudVoice]);
 
   useEffect(() => {
     if (!current) return;
@@ -119,9 +120,10 @@ export default function Game() {
     void speakText(text, {
       preferRemote: true,
       remoteTimeoutMs: fastMode ? 650 : 15000,
-      fallback: localFallbackOn ? "local" : "silent"
+      fallback: localFallbackOn ? "local" : "silent",
+      voice: cloudVoice
     }).then((r) => setSpeakResult(r ?? "silent"));
-  }, [current, speechOn, unlocked, localFallbackOn, fastMode]);
+  }, [current, speechOn, unlocked, localFallbackOn, fastMode, cloudVoice]);
 
   async function celebrate() {
     try {
@@ -191,7 +193,8 @@ export default function Game() {
     void speakText(text, {
       preferRemote: true,
       remoteTimeoutMs: fastMode ? 650 : 15000,
-      fallback: localFallbackOn ? "local" : "silent"
+      fallback: localFallbackOn ? "local" : "silent",
+      voice: cloudVoice
     }).then((r) => setSpeakResult(r ?? "silent"));
   }
 
@@ -207,7 +210,8 @@ export default function Game() {
     void speakText(text, {
       preferRemote: true,
       remoteTimeoutMs: fastMode ? 650 : 15000,
-      fallback: localFallbackOn ? "local" : "silent"
+      fallback: localFallbackOn ? "local" : "silent",
+      voice: cloudVoice
     }).then((r) => setSpeakResult(r ?? "silent"));
   }
 
@@ -274,6 +278,13 @@ export default function Game() {
             }`}
           >
             快速模式：{fastMode ? "开" : "关"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCloudVoice((v) => (v === "xiaochen" ? "tongtong" : "xiaochen"))}
+            className="touch-manipulation rounded-full bg-white px-3 py-1 text-sm font-semibold text-pink-700/70 ring-1 ring-pink-100 hover:bg-pink-50"
+          >
+            云端音色：{cloudVoice === "xiaochen" ? "小晨" : "童童"}
           </button>
           <button
             type="button"
