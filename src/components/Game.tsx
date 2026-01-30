@@ -208,7 +208,7 @@ export default function Game() {
   }
 
   return (
-    <section className="relative rounded-3xl bg-white/70 p-6 shadow-soft ring-1 ring-pink-100 backdrop-blur">
+    <section className="relative w-full flex-1 rounded-3xl bg-white/70 p-5 shadow-soft ring-1 ring-pink-100 backdrop-blur md:p-6 lg:min-h-[78svh]">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="rounded-full bg-pink-600 px-3 py-1 text-sm font-semibold text-white">
@@ -294,7 +294,7 @@ export default function Game() {
       )}
 
       {status === "done" ? (
-        <div className="py-6 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-6 text-center">
           <div className="mx-auto mb-2 inline-flex items-center gap-2 rounded-2xl bg-pink-600 px-4 py-2 text-white shadow-soft">
             <span className="text-lg font-extrabold">恭喜完成！</span>
             <span className="text-sm font-semibold">你太棒啦</span>
@@ -313,8 +313,8 @@ export default function Game() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[1.1fr,1fr] lg:gap-6">
-          <div className="text-center lg:sticky lg:top-5">
+        <div className="grid min-h-0 gap-5 lg:grid-cols-[1.05fr,1fr] lg:gap-6">
+          <div className="text-center lg:flex lg:flex-col lg:justify-center">
             <div className="text-sm font-semibold text-pink-700/80">拼音</div>
             <div className="mt-1 text-3xl font-extrabold tracking-wide text-pink-800 md:text-4xl">
               {current?.word.pinyin}
@@ -362,7 +362,7 @@ export default function Game() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:auto-rows-fr">
             {current?.options.map((opt, i) => {
               const label = ["A", "B", "C", "D"][i] ?? "?";
               const disabled = status === "correct";
@@ -375,7 +375,7 @@ export default function Game() {
                   disabled={disabled}
                   onClick={() => onPick(opt)}
                   className={[
-                    "touch-manipulation group rounded-2xl border-2 bg-white px-5 py-4 text-left shadow-sm transition",
+                    "touch-manipulation group h-full rounded-2xl border-2 bg-white px-5 py-5 text-left shadow-sm transition md:py-6",
                     "md:hover:-translate-y-0.5 md:hover:border-pink-300 md:hover:shadow-soft active:translate-y-0",
                     disabled ? "opacity-90" : "",
                     showAnswerHint ? "border-emerald-300 ring-2 ring-emerald-200/60" : "",
