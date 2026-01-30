@@ -7,7 +7,7 @@ import { pickUniqueIndices, shuffle, weightedPickUniqueIndices } from "@/lib/ran
 import { decMistake, incMistake, loadMistakes, type MistakeStats, wordKey } from "@/lib/progress";
 import { speechSupported } from "@/lib/speech";
 import { playCheer } from "@/lib/sound";
-import { speakText } from "@/lib/tts";
+import { prefetchText, speakText } from "@/lib/tts";
 
 type RoundItem = {
   word: WordEntry;
@@ -77,6 +77,34 @@ export default function Game() {
   }, []);
 
   useEffect(() => {
+    if (!speechOn) return;
+    if (!unlocked) return;
+    const words = round.items.map((x) => x.word.hanzi);
+    if (words.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      // Prefetch with small concurrency to avoid blocking UI.
+      for (let i = 0; i < words.length; i++) {
+        if (cancelled) return;
+        const text = words[i]!;
+        try {
+          await prefetchText(text);
+        } catch {
+          // ignore (will fall back at speak time)
+        }
+      }
+    };
+
+    // Let first paint happen; then prefetch.
+    const t = window.setTimeout(() => void run(), 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [round.items, speechOn, unlocked]);
+
+  useEffect(() => {
     if (!current) return;
     setStatus("idle");
     if (!speechOn) return;
@@ -84,7 +112,7 @@ export default function Game() {
 
     const text = current.word.hanzi;
     lastSpokenRef.current = text;
-    void speakText(text, { preferRemote: true });
+    void speakText(text, { preferRemote: true, remoteTimeoutMs: 650 });
   }, [current, speechOn, unlocked]);
 
   async function celebrate() {
@@ -150,7 +178,7 @@ export default function Game() {
     if (!unlocked) return;
     const text = lastSpokenRef.current || current?.word.hanzi;
     if (!text) return;
-    void speakText(text, { preferRemote: true });
+    void speakText(text, { preferRemote: true, remoteTimeoutMs: 650 });
   }
 
   function unlockAudioAndSpeech() {
@@ -160,7 +188,7 @@ export default function Game() {
     const text = current?.word.hanzi;
     if (!text) return;
     lastSpokenRef.current = text;
-    void speakText(text, { preferRemote: true });
+    void speakText(text, { preferRemote: true, remoteTimeoutMs: 650 });
   }
 
   return (

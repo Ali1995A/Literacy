@@ -6,6 +6,15 @@ type TtsRequest = {
   text?: string;
 };
 
+function getTextFromUrl(req: Request) {
+  try {
+    const url = new URL(req.url);
+    return (url.searchParams.get("text") ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
 function base64ToBuffer(b64: string) {
   return Buffer.from(b64, "base64");
 }
@@ -44,18 +53,37 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: TtsRequest;
+  let body: TtsRequest | null = null;
   try {
     body = (await req.json()) as TtsRequest;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    body = null;
   }
 
-  const text = (body.text ?? "").trim();
+  const text = (body?.text ?? "").trim();
   if (!text) {
     return NextResponse.json({ error: "Missing text" }, { status: 400 });
   }
 
+  return handleTts(text, apiKey);
+}
+
+export async function GET(req: Request) {
+  const apiKey = process.env.ZHIPU_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "ZHIPU_API_KEY is not set" },
+      { status: 500 }
+    );
+  }
+  const text = getTextFromUrl(req);
+  if (!text) {
+    return NextResponse.json({ error: "Missing text" }, { status: 400 });
+  }
+  return handleTts(text, apiKey);
+}
+
+async function handleTts(text: string, apiKey: string) {
   const model = process.env.ZHIPU_VOICE_MODEL || "glm-4-voice";
 
   const prompt = `请用清晰、儿童友好、略慢一点的语速朗读以下词语：${text}`;
@@ -121,8 +149,8 @@ export async function POST(req: Request) {
     status: 200,
     headers: {
       "Content-Type": "audio/wav",
+      // GET: allow CDN/browser cache; POST: typically not cached by browsers, but header is harmless.
       "Cache-Control": "public, max-age=31536000, immutable"
     }
   });
 }
-
