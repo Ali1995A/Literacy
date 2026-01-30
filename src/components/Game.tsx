@@ -3,7 +3,8 @@
 import confetti from "canvas-confetti";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { WORDS, type WordEntry } from "@/lib/words";
-import { pickUniqueIndices, shuffle } from "@/lib/random";
+import { pickUniqueIndices, shuffle, weightedPickUniqueIndices } from "@/lib/random";
+import { decMistake, incMistake, loadMistakes, type MistakeStats, wordKey } from "@/lib/progress";
 import { speechSupported } from "@/lib/speech";
 import { playCheer } from "@/lib/sound";
 import { speakText } from "@/lib/tts";
@@ -22,8 +23,9 @@ type RoundState = {
 const ROUND_SIZE = 5;
 const OPTION_COUNT = 4;
 
-function buildRound(): RoundState {
-  const questionIndices = pickUniqueIndices(WORDS.length, ROUND_SIZE);
+function buildRound(stats: MistakeStats): RoundState {
+  const weights = WORDS.map((w) => 1 + (stats[wordKey(w.hanzi, w.pinyin)] ?? 0) * 4);
+  const questionIndices = weightedPickUniqueIndices(weights, ROUND_SIZE);
   const items: RoundItem[] = questionIndices.map((wordIndex) => {
     const correct = WORDS[wordIndex];
     const distractorIndices = pickUniqueIndices(WORDS.length, OPTION_COUNT - 1, new Set([wordIndex]));
@@ -53,7 +55,8 @@ function BlankWord({ text }: { text: string }) {
 }
 
 export default function Game() {
-  const [round, setRound] = useState<RoundState>(() => buildRound());
+  const [mistakes, setMistakes] = useState<MistakeStats>({});
+  const [round, setRound] = useState<RoundState>(() => buildRound({}));
   const [status, setStatus] = useState<"idle" | "correct" | "wrong" | "done">("idle");
   const [speechOn, setSpeechOn] = useState(true);
   const [autoNextOnCorrect, setAutoNextOnCorrect] = useState(true);
@@ -65,6 +68,12 @@ export default function Game() {
     if (status === "done") return `本组完成：${round.correctCount}/${ROUND_SIZE}`;
     return `第 ${round.currentIndex + 1} / ${ROUND_SIZE} 题`;
   }, [round.correctCount, round.currentIndex, status]);
+
+  useEffect(() => {
+    const loaded = loadMistakes();
+    setMistakes(loaded);
+    setRound(buildRound(loaded));
+  }, []);
 
   useEffect(() => {
     if (!current) return;
@@ -113,7 +122,7 @@ export default function Game() {
 
   function restartRound() {
     setStatus("idle");
-    setRound(buildRound());
+    setRound(buildRound(mistakes));
   }
 
   async function onPick(option: WordEntry) {
@@ -123,10 +132,12 @@ export default function Game() {
     const isCorrect = option.hanzi === current.word.hanzi;
     if (!isCorrect) {
       setStatus("wrong");
+      setMistakes((m) => incMistake(m, wordKey(current.word.hanzi, current.word.pinyin)));
       return;
     }
 
     setStatus("correct");
+    setMistakes((m) => decMistake(m, wordKey(current.word.hanzi, current.word.pinyin)));
     setRound((r) => ({ ...r, correctCount: r.correctCount + 1 }));
 
     if (!autoNextOnCorrect) return;
@@ -213,16 +224,16 @@ export default function Game() {
           </div>
         </div>
       ) : (
-        <>
-          <div className="mb-5 text-center">
+        <div className="grid gap-5 lg:grid-cols-[1.1fr,1fr] lg:gap-6">
+          <div className="text-center lg:sticky lg:top-5">
             <div className="text-sm font-semibold text-pink-700/80">拼音</div>
-            <div className="mt-1 text-2xl font-extrabold tracking-wide text-pink-800">
+            <div className="mt-1 text-3xl font-extrabold tracking-wide text-pink-800 md:text-4xl">
               {current?.word.pinyin}
             </div>
-            <div className="mt-4">
+            <div className="mt-5 md:mt-6">
               <BlankWord text={current?.word.hanzi ?? ""} />
             </div>
-            <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={replay}
@@ -247,9 +258,22 @@ export default function Game() {
                 换一组词
               </button>
             </div>
+
+            <div className="mt-5 min-h-10 text-center">
+              {status === "wrong" && (
+                <div className="inline-flex items-center gap-2 rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 ring-1 ring-rose-200">
+                  这题已记录，之后会再出现～
+                </div>
+              )}
+              {status === "correct" && (
+                <div className="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  太棒了！答对啦～
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {current?.options.map((opt, i) => {
               const label = ["A", "B", "C", "D"][i] ?? "?";
               const disabled = status === "correct";
@@ -267,14 +291,14 @@ export default function Game() {
                   ].join(" ")}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-pink-600 text-sm font-extrabold text-white">
+                    <div className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-pink-600 text-sm font-extrabold text-white md:h-11 md:w-11">
                       {label}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-2xl font-extrabold text-pink-800 group-hover:text-pink-900">
+                      <div className="text-3xl font-extrabold text-pink-800 group-hover:text-pink-900 md:text-4xl">
                         {opt.hanzi}
                       </div>
-                      <div className="mt-1 text-sm font-semibold text-pink-700/70">
+                      <div className="mt-1 text-sm font-semibold text-pink-700/70 md:text-base">
                         {opt.pinyin}
                       </div>
                     </div>
@@ -283,20 +307,7 @@ export default function Game() {
               );
             })}
           </div>
-
-          <div className="mt-5 min-h-10 text-center">
-            {status === "wrong" && (
-              <div className="inline-flex items-center gap-2 rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 ring-1 ring-rose-200">
-                没关系，再试一次～
-              </div>
-            )}
-            {status === "correct" && (
-              <div className="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                太棒了！答对啦～
-              </div>
-            )}
-          </div>
-        </>
+        </div>
       )}
 
       {!unlocked && speechOn && needsUnlock() && status !== "done" && (
