@@ -64,6 +64,7 @@ export default function Game() {
   const lastSpokenRef = useRef<string>("");
 
   const current = round.items[round.currentIndex];
+  const hintMode = useMemo(() => isBeforeBeijingDate("2026-04-01"), []);
   const progressLabel = useMemo(() => {
     if (status === "done") return `本组完成：${round.correctCount}/${ROUND_SIZE}`;
     return `第 ${round.currentIndex + 1} / ${ROUND_SIZE} 题`;
@@ -277,6 +278,8 @@ export default function Game() {
             {current?.options.map((opt, i) => {
               const label = ["A", "B", "C", "D"][i] ?? "?";
               const disabled = status === "correct";
+              const isAnswer = opt.hanzi === current.word.hanzi;
+              const showAnswerHint = hintMode && isAnswer;
               return (
                 <button
                   key={`${opt.hanzi}-${i}`}
@@ -287,18 +290,35 @@ export default function Game() {
                     "touch-manipulation group rounded-2xl border-2 bg-white px-5 py-4 text-left shadow-sm transition",
                     "md:hover:-translate-y-0.5 md:hover:border-pink-300 md:hover:shadow-soft active:translate-y-0",
                     disabled ? "opacity-90" : "",
-                    status === "wrong" ? "border-pink-200" : "border-pink-100"
+                    showAnswerHint ? "border-emerald-300 ring-2 ring-emerald-200/60" : "",
+                    !showAnswerHint && status === "wrong" ? "border-pink-200" : "",
+                    !showAnswerHint && status !== "wrong" ? "border-pink-100" : ""
                   ].join(" ")}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-pink-600 text-sm font-extrabold text-white md:h-11 md:w-11">
+                    <div
+                      className={[
+                        "mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-extrabold text-white md:h-11 md:w-11",
+                        showAnswerHint ? "bg-emerald-600" : "bg-pink-600"
+                      ].join(" ")}
+                    >
                       {label}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-3xl font-extrabold text-pink-800 group-hover:text-pink-900 md:text-4xl">
+                      <div
+                        className={[
+                          "text-3xl font-extrabold group-hover:text-pink-900 md:text-4xl",
+                          showAnswerHint ? "text-emerald-700" : "text-pink-800"
+                        ].join(" ")}
+                      >
                         {opt.hanzi}
                       </div>
-                      <div className="mt-1 text-sm font-semibold text-pink-700/70 md:text-base">
+                      <div
+                        className={[
+                          "mt-1 text-sm font-semibold md:text-base",
+                          showAnswerHint ? "text-emerald-700/70" : "text-pink-700/70"
+                        ].join(" ")}
+                      >
                         {opt.pinyin}
                       </div>
                     </div>
@@ -349,4 +369,24 @@ function needsUnlock() {
     (/\bMacintosh\b/i.test(ua) && (navigator.maxTouchPoints ?? 0) > 1);
   const isWeChat = /MicroMessenger/i.test(ua);
   return isIOS || isWeChat;
+}
+
+function isBeforeBeijingDate(yyyyMmDd: string) {
+  if (typeof window === "undefined") return true;
+  try {
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date()); // YYYY-MM-DD
+    return today < yyyyMmDd;
+  } catch {
+    // Fallback: assume current locale time; still safe for near-term use.
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}` < yyyyMmDd;
+  }
 }
