@@ -13,6 +13,15 @@ export function speechSupported() {
   return typeof window !== "undefined" && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
 }
 
+export function cancelSpeech() {
+  if (!speechSupported()) return;
+  try {
+    window.speechSynthesis.cancel();
+  } catch {
+    // ignore
+  }
+}
+
 export async function speakChinese(text: string) {
   if (!speechSupported()) return;
   const synth = window.speechSynthesis;
@@ -40,11 +49,7 @@ export async function speakChinese(text: string) {
     voice = ensureVoice();
   }
 
-  try {
-    synth.cancel();
-  } catch {
-    // ignore
-  }
+  cancelSpeech();
 
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = "zh-CN";
@@ -54,4 +59,3 @@ export async function speakChinese(text: string) {
   utter.volume = 1;
   synth.speak(utter);
 }
-
