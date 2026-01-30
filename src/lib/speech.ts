@@ -1,12 +1,36 @@
 let cachedVoice: SpeechSynthesisVoice | null = null;
 
+function scoreVoice(v: SpeechSynthesisVoice) {
+  const lang = (v.lang || "").toLowerCase();
+  const name = (v.name || "").toLowerCase();
+  const uri = (v.voiceURI || "").toLowerCase();
+
+  let score = 0;
+  if (lang === "zh-cn") score += 200;
+  if (lang.startsWith("zh-cn")) score += 150;
+  if (lang.startsWith("zh")) score += 90;
+
+  // Prefer local/native voices on iOS, often more natural and lower latency.
+  if (v.localService) score += 40;
+
+  // Heuristics for nicer Mandarin voices (best-effort across platforms).
+  const prefer = ["ting", "婷婷", "xiaoxiao", "yunxi", "yunxia", "xiaoyi", "huilian", "huihui", "mandarin"];
+  if (prefer.some((p) => name.includes(p) || uri.includes(p))) score += 30;
+
+  // Avoid some obviously "robotic"/fallback voices.
+  const avoid = ["compact", "default", "speech", "robot", "generic"];
+  if (avoid.some((p) => name.includes(p) || uri.includes(p))) score -= 20;
+
+  return score;
+}
+
 function pickChineseVoice(voices: SpeechSynthesisVoice[]) {
   const zhVoices = voices.filter((v) => (v.lang || "").toLowerCase().startsWith("zh"));
-  const zhCn =
-    zhVoices.find((v) => v.lang.toLowerCase() === "zh-cn") ??
-    zhVoices.find((v) => v.lang.toLowerCase().startsWith("zh-cn")) ??
-    zhVoices[0];
-  return zhCn ?? null;
+  if (zhVoices.length === 0) return null;
+  const sorted = zhVoices
+    .slice()
+    .sort((a, b) => scoreVoice(b) - scoreVoice(a));
+  return sorted[0] ?? null;
 }
 
 export function speechSupported() {
@@ -54,8 +78,8 @@ export async function speakChinese(text: string) {
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = "zh-CN";
   if (voice) utter.voice = voice;
-  utter.rate = 0.9;
-  utter.pitch = 1.15;
+  utter.rate = 0.92;
+  utter.pitch = 1.08;
   utter.volume = 1;
   synth.speak(utter);
 }

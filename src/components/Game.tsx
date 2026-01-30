@@ -59,6 +59,7 @@ export default function Game() {
   const [round, setRound] = useState<RoundState>(() => buildRound({}));
   const [status, setStatus] = useState<"idle" | "correct" | "wrong" | "done">("idle");
   const [speechOn, setSpeechOn] = useState(true);
+  const [localFallbackOn, setLocalFallbackOn] = useState(false);
   const [autoNextOnCorrect, setAutoNextOnCorrect] = useState(true);
   const [unlocked, setUnlocked] = useState(() => !needsUnlock());
   const lastSpokenRef = useRef<string>("");
@@ -112,8 +113,12 @@ export default function Game() {
 
     const text = current.word.hanzi;
     lastSpokenRef.current = text;
-    void speakText(text, { preferRemote: true, remoteTimeoutMs: 650 });
-  }, [current, speechOn, unlocked]);
+    void speakText(text, {
+      preferRemote: true,
+      remoteTimeoutMs: 650,
+      fallback: localFallbackOn ? "local" : "silent"
+    });
+  }, [current, speechOn, unlocked, localFallbackOn]);
 
   async function celebrate() {
     try {
@@ -178,7 +183,11 @@ export default function Game() {
     if (!unlocked) return;
     const text = lastSpokenRef.current || current?.word.hanzi;
     if (!text) return;
-    void speakText(text, { preferRemote: true, remoteTimeoutMs: 650 });
+    void speakText(text, {
+      preferRemote: true,
+      remoteTimeoutMs: 650,
+      fallback: localFallbackOn ? "local" : "silent"
+    });
   }
 
   function unlockAudioAndSpeech() {
@@ -188,7 +197,11 @@ export default function Game() {
     const text = current?.word.hanzi;
     if (!text) return;
     lastSpokenRef.current = text;
-    void speakText(text, { preferRemote: true, remoteTimeoutMs: 650 });
+    void speakText(text, {
+      preferRemote: true,
+      remoteTimeoutMs: 650,
+      fallback: localFallbackOn ? "local" : "silent"
+    });
   }
 
   return (
@@ -212,6 +225,17 @@ export default function Game() {
             }`}
           >
             朗读：{speechOn ? "开" : "关"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setLocalFallbackOn((v) => !v)}
+            className={`touch-manipulation rounded-full px-3 py-1 text-sm font-semibold ring-1 ${
+              localFallbackOn
+                ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                : "bg-white text-pink-700/70 ring-pink-100"
+            }`}
+          >
+            本地兜底：{localFallbackOn ? "开" : "关"}
           </button>
           <button
             type="button"

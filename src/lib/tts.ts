@@ -3,6 +3,7 @@ import { cancelSpeech, speakChinese, speechSupported } from "@/lib/speech";
 type SpeakOptions = {
   preferRemote?: boolean;
   remoteTimeoutMs?: number;
+  fallback?: "local" | "silent";
   signal?: AbortSignal;
 };
 
@@ -90,6 +91,7 @@ function withTimeout(signal: AbortSignal, ms: number) {
 export async function speakText(text: string, opts: SpeakOptions = {}) {
   const preferRemote = opts.preferRemote ?? true;
   const remoteTimeoutMs = opts.remoteTimeoutMs ?? 650;
+  const fallback = opts.fallback ?? "silent";
 
   stopCurrent();
   const seq = activeSeq;
@@ -122,6 +124,8 @@ export async function speakText(text: string, opts: SpeakOptions = {}) {
   }
 
   if (!controller.signal.aborted && seq === activeSeq && speechSupported()) {
-    await speakChinese(text);
+    if (fallback === "local") {
+      await speakChinese(text);
+    }
   }
 }
