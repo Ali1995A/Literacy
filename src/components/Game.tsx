@@ -115,9 +115,10 @@ export default function Game() {
 
     const text = current.word.hanzi;
     lastSpokenRef.current = text;
+    setSpeakResult("pending");
     void speakText(text, {
       preferRemote: true,
-      remoteTimeoutMs: fastMode ? 650 : 6000,
+      remoteTimeoutMs: fastMode ? 650 : 15000,
       fallback: localFallbackOn ? "local" : "silent"
     }).then((r) => setSpeakResult(r ?? "silent"));
   }, [current, speechOn, unlocked, localFallbackOn, fastMode]);
@@ -185,9 +186,11 @@ export default function Game() {
     if (!unlocked) return;
     const text = lastSpokenRef.current || current?.word.hanzi;
     if (!text) return;
+    void unlockRemoteAudio();
+    setSpeakResult("pending");
     void speakText(text, {
       preferRemote: true,
-      remoteTimeoutMs: fastMode ? 650 : 6000,
+      remoteTimeoutMs: fastMode ? 650 : 15000,
       fallback: localFallbackOn ? "local" : "silent"
     }).then((r) => setSpeakResult(r ?? "silent"));
   }
@@ -200,9 +203,10 @@ export default function Game() {
     if (!text) return;
     lastSpokenRef.current = text;
     void unlockRemoteAudio();
+    setSpeakResult("pending");
     void speakText(text, {
       preferRemote: true,
-      remoteTimeoutMs: fastMode ? 650 : 6000,
+      remoteTimeoutMs: fastMode ? 650 : 15000,
       fallback: localFallbackOn ? "local" : "silent"
     }).then((r) => setSpeakResult(r ?? "silent"));
   }
@@ -221,21 +225,30 @@ export default function Game() {
             <div
               className={[
                 "rounded-full px-3 py-1 text-xs font-extrabold ring-1",
+                speakResult === "pending"
+                  ? "bg-violet-50 text-violet-700 ring-violet-200"
+                  : "",
                 speakResult === "remote"
                   ? "bg-sky-50 text-sky-700 ring-sky-200"
                   : speakResult === "blocked"
                     ? "bg-amber-50 text-amber-800 ring-amber-200"
                     : speakResult === "local"
                       ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                      : speakResult === "error"
+                        ? "bg-rose-50 text-rose-700 ring-rose-200"
                       : "bg-white text-pink-700/70 ring-pink-100"
               ].join(" ")}
             >
-              {speakResult === "remote"
+              {speakResult === "pending"
+                ? "云端加载中…"
+                : speakResult === "remote"
                 ? "云端✓"
                 : speakResult === "blocked"
                   ? "云端需点击"
                   : speakResult === "local"
                     ? "本地兜底"
+                    : speakResult === "error"
+                      ? "朗读失败"
                     : "静音"}
             </div>
           )}

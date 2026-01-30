@@ -7,7 +7,7 @@ type SpeakOptions = {
   signal?: AbortSignal;
 };
 
-export type SpeakResult = "remote" | "local" | "silent" | "blocked";
+export type SpeakResult = "pending" | "remote" | "local" | "silent" | "blocked" | "error";
 
 const audioUrlCache = new Map<string, string>();
 let sharedAudio: HTMLAudioElement | null = null;
@@ -167,7 +167,7 @@ export async function speakText(text: string, opts: SpeakOptions = {}) {
       }
       return "remote" satisfies SpeakResult;
     } catch {
-      // fall through to local engine
+      // fall through to local engine (or error/silent)
     }
   }
 
@@ -178,5 +178,9 @@ export async function speakText(text: string, opts: SpeakOptions = {}) {
     }
   }
 
+  // If the user asked for local but we can't, report error; otherwise silent.
+  if (fallback === "local" && !speechSupported()) {
+    return "error" satisfies SpeakResult;
+  }
   return "silent" satisfies SpeakResult;
 }
