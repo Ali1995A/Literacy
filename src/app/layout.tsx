@@ -10,7 +10,7 @@ const notoSansSC = Noto_Sans_SC({
 });
 
 export const metadata: Metadata = {
-  title: "识字小公主",
+  title: "识字大王",
   description: "粉色风格的 5 岁识字小游戏：拼音 + 朗读 + 选择题"
 };
 

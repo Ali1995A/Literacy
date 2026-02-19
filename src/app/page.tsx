@@ -6,7 +6,7 @@ export default function HomePage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col md:min-h-[calc(100svh-3rem)]">
         <header className="mb-3 flex flex-wrap items-center justify-between gap-3 md:mb-6">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-2 shadow-soft ring-1 ring-pink-100">
-            <span className="text-lg font-bold text-pink-700">识字小公主</span>
+            <span className="text-lg font-bold text-pink-700">识字大王</span>
             <span className="text-sm text-pink-600/80">（5 题一组）</span>
           </div>
           <div className="text-xs font-semibold text-pink-700/70 md:text-sm">
