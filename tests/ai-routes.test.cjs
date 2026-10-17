@@ -29,3 +29,28 @@ test('normal POST retains fixed TTS model and default voice', async () => {
   assert.equal((await route.POST(req({text:'hello'}))).status,200);
   const body=JSON.parse(calls[0].init.body); assert.equal(body.model,'glm-tts'); assert.equal(body.voice,'tongtong');
 });
+
+test('GET rejects duplicate text, voice and speed before upstream calls', async () => {
+  for (const query of [
+    'text=hello&text=world',
+    'text=hello&voice=tongtong&voice=tongtong',
+    'text=hello&speed=1&speed=1',
+    'text=hello&%74ext=world'
+  ]) {
+    const response = await route.GET(new Request('https://family.test/api/tts?' + query));
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'BAD_INPUT');
+  }
+  assert.equal(calls.length, 0);
+});
+
+test('GET rejects invalid first values followed by valid duplicates before upstream calls', async () => {
+  for (const query of [
+    'text=' + 'x'.repeat(501) + '&text=hello',
+    'text=hello&voice=' + 'x'.repeat(81) + '&voice=tongtong',
+    'text=hello&speed=999&speed=1'
+  ]) {
+    assert.equal((await route.GET(new Request('https://family.test/api/tts?' + query))).status, 400);
+  }
+  assert.equal(calls.length, 0);
+});
