@@ -1,3 +1,5 @@
+import { withWebGuard, bufferedFetch } from "../../../../server/ai-guard.cjs";
+import { policy } from "../../../../server/policy.cjs";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -38,7 +40,7 @@ function getSpeedFromUrl(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -65,7 +67,7 @@ export async function POST(req: Request) {
   return handleTts({ text, apiKey, voice, speed });
 }
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -99,7 +101,7 @@ async function handleTts({
     ? (speed as number)
     : Number(process.env.ZHIPU_TTS_SPEED ?? "1");
 
-  const upstream = await fetch("https://open.bigmodel.cn/api/paas/v4/audio/speech", {
+  const upstream = await bufferedFetch("https://open.bigmodel.cn/api/paas/v4/audio/speech", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -134,4 +136,12 @@ async function handleTts({
       "Cache-Control": "public, max-age=31536000, immutable"
     }
   });
+}
+
+export async function GET(req: Request) {
+  return withWebGuard(req, policy, handleGET);
+}
+
+export async function POST(req: Request) {
+  return withWebGuard(req, policy, handlePOST);
 }
